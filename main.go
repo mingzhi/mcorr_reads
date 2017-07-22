@@ -96,13 +96,12 @@ func main() {
 	runtime.GOMAXPROCS(ncpu)
 
 	// Read sequence reads.
-	var header *sam.Header
 	var recordsChan chan GeneSamRecords
 	if gffFile != "" {
 		gffRecMap := readGffs(gffFile)
-		header, recordsChan = readStrainBamFile(bamFile, gffRecMap)
+		_, recordsChan = readStrainBamFile(bamFile, gffRecMap)
 	} else {
-		header, recordsChan = readPanGenomeBamFile(bamFile)
+		_, recordsChan = readPanGenomeBamFile(bamFile)
 	}
 
 	var geneSet map[string]bool
@@ -161,7 +160,10 @@ func main() {
 		corrResEncoder = json.NewEncoder(f)
 	}
 	collector := NewCollector()
+	count := 0
 	for corrResults := range p2Chan {
+		count++
+		fmt.Printf("\rProcessed %d genes.", count)
 		collector.Add(corrResults)
 		if corrResFile != "" {
 			if err := corrResEncoder.Encode(corrResults); err != nil {
@@ -170,8 +172,6 @@ func main() {
 		}
 	}
 
-	numJob := len(header.Refs())
-	log.Printf("Number of references: %d\n", numJob)
 	w, err := os.Create(outFile)
 	if err != nil {
 		panic(err)
@@ -184,6 +184,7 @@ func main() {
 		w.WriteString(fmt.Sprintf("%d,%g,%g,%d,%s,all\n",
 			res.Lag, res.Value, res.Variance, res.Count, res.Type))
 	}
+	fmt.Println(" Done!")
 }
 
 // pileupCodons pileup codons of a list of reads at a gene.
@@ -209,13 +210,14 @@ func checkReadQuality(read *sam.Record) bool {
 		return false
 	}
 
-	//		for _, cigar := range read.Cigar {
-	//			if cigar.Type() != sam.CigarMatch && cigar.Type() != sam.CigarSoftClipped {
-	//				return false
-	//			}
-	//		}
-	
-    return true
+	// contains only match or mismatch
+	for _, cigar := range read.Cigar {
+		if cigar.Type() != sam.CigarMatch && cigar.Type() != sam.CigarSoftClipped {
+			return false
+		}
+	}
+
+	return true
 }
 
 // getCodons split a read into a list of Codon.
