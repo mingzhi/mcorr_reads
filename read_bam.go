@@ -4,6 +4,8 @@ import (
 	"io"
 	"os"
 
+	"fmt"
+
 	"github.com/biogo/hts/bam"
 	"github.com/biogo/hts/sam"
 	"github.com/mingzhi/biogo/feat/gff"
@@ -112,11 +114,16 @@ func readStrainBamFile(fileName string, gffMap map[string][]*gff.Record) (header
 	go func() {
 		defer close(recordsChan)
 
+		totalReads := 0
+		filteredReads := 0
+		inGeneReads := 0
 		var genes []GeneSamRecords
 		currentReference := ""
 		for record := range samRecChan {
+			totalReads++
 			passed := checkReadQuality(record)
 			if !passed {
+				filteredReads++
 				continue
 			}
 			if currentReference != record.Ref.Name() {
@@ -139,6 +146,7 @@ func readStrainBamFile(fileName string, gffMap map[string][]*gff.Record) (header
 			var maxIndex int
 			for i, gene := range genes {
 				if isReadInGene(record, gene) {
+					inGeneReads++
 					genes[i].Records = append(genes[i].Records, record)
 				} else {
 					if record.Pos > gene.End {
@@ -155,10 +163,19 @@ func readStrainBamFile(fileName string, gffMap map[string][]*gff.Record) (header
 				if len(genes[i].Records) > 0 {
 					recordsChan <- genes[i]
 				}
-
 			}
 			genes = genes[maxIndex:]
+
+			if ShowProgress {
+				if totalReads%10000 == 0 {
+					fmt.Printf("\rProcessed %d reads.", totalReads)
+				}
+			}
 		}
+
+		fmt.Printf("Total reads: %d\n", totalReads)
+		fmt.Printf("Filtered reads: %d\n", filteredReads)
+		fmt.Printf("Reads in coding regions: %d\n", inGeneReads)
 
 		for i := 0; i < len(genes); i++ {
 			if len(genes[i].Records) > 0 {

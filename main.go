@@ -71,7 +71,6 @@ func main() {
 	minAlleleDepthFlag := app.Flag("min-allele-depth", "min allele depth").Default("0").Int()
 	maxDepthFlag := app.Flag("max-depth", "max coverage depth for each gene").Default("0").Float64()
 	minReadLenFlag := app.Flag("min-read-length", "minimal read length").Default("60").Int()
-	progress := app.Flag("progress", "show progress").Default("false").Bool()
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	bamFile = *bamFileArg
@@ -161,12 +160,7 @@ func main() {
 		corrResEncoder = json.NewEncoder(f)
 	}
 	collector := NewCollector()
-	count := 0
 	for corrResults := range p2Chan {
-		count++
-		if *progress {
-			fmt.Printf("\rProcessed %d genes.", count)
-		}
 		collector.Add(corrResults)
 		if corrResFile != "" {
 			if err := corrResEncoder.Encode(corrResults); err != nil {
@@ -186,10 +180,6 @@ func main() {
 	for _, res := range results {
 		w.WriteString(fmt.Sprintf("%d,%g,%g,%d,%s,all\n",
 			res.Lag, res.Value, res.Variance, res.Count, res.Type))
-	}
-
-	if *progress {
-		fmt.Println(" Done!")
 	}
 }
 
