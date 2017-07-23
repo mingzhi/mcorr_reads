@@ -197,33 +197,15 @@ func main() {
 func pileupCodons(geneRecords GeneSamRecords) (codonGene *CodonGene) {
 	codonGene = NewCodonGene()
 	for _, read := range geneRecords.Records {
-		if checkReadQuality(read) {
-			codonArray := getCodons(read, geneRecords.Start, geneRecords.Strand)
-			for _, codon := range codonArray {
-				if !codon.ContainsGap() {
-					codonGene.AddCodon(codon)
-				}
+		codonArray := getCodons(read, geneRecords.Start, geneRecords.Strand)
+		for _, codon := range codonArray {
+			if !codon.ContainsGap() {
+				codonGene.AddCodon(codon)
 			}
 		}
 	}
 
 	return
-}
-
-// checkReadQuality return false if the read fails quality check.
-func checkReadQuality(read *sam.Record) bool {
-	if int(read.MapQ) < MinMapQuality || read.Len() < MinReadLength {
-		return false
-	}
-
-	// contains only match or mismatch
-	for _, cigar := range read.Cigar {
-		if cigar.Type() != sam.CigarMatch && cigar.Type() != sam.CigarSoftClipped {
-			return false
-		}
-	}
-
-	return true
 }
 
 // getCodons split a read into a list of Codon.

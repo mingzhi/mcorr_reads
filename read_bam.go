@@ -115,6 +115,10 @@ func readStrainBamFile(fileName string, gffMap map[string][]*gff.Record) (header
 		var genes []GeneSamRecords
 		currentReference := ""
 		for record := range samRecChan {
+			passed := checkReadQuality(record)
+			if !passed {
+				continue
+			}
 			if currentReference != record.Ref.Name() {
 				gffRecords, found := gffMap[record.Ref.Name()]
 				if !found {
@@ -199,4 +203,20 @@ func readGffs(fileName string) map[string][]*gff.Record {
 		}
 	}
 	return m
+}
+
+// checkReadQuality return false if the read fails quality check.
+func checkReadQuality(read *sam.Record) bool {
+	if int(read.MapQ) < MinMapQuality || read.Len() < MinReadLength {
+		return false
+	}
+
+	// contains only match or mismatch
+	for _, cigar := range read.Cigar {
+		if cigar.Type() != sam.CigarMatch && cigar.Type() != sam.CigarSoftClipped {
+			return false
+		}
+	}
+
+	return true
 }
