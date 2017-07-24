@@ -71,6 +71,8 @@ func main() {
 	minAlleleDepthFlag := app.Flag("min-allele-depth", "min allele depth").Default("0").Int()
 	maxDepthFlag := app.Flag("max-depth", "max coverage depth for each gene").Default("0").Float64()
 	minReadLenFlag := app.Flag("min-read-length", "minimal read length").Default("60").Int()
+	codonPosition := app.Flag("codon-position", "codon position").Default("3").Int()
+	synoumous := app.Flag("synoumous", "use synoumous mutations only").Default("true").Bool()
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	bamFile = *bamFileArg
@@ -133,8 +135,8 @@ func main() {
 				gene := pileupCodons(geneRecords)
 				ok := checkCoverage(gene, geneLen, minDepth, minCoverage)
 				if ok {
-					p2 := calcP2(gene, maxl, minDepth, codeTable)
-					p4 := calcP4(gene, maxl, minDepth, codeTable)
+					p2 := calcP2(gene, maxl, minDepth, codeTable, *codonPosition-1, *synoumous)
+					p4 := calcP4(gene, maxl, minDepth, codeTable, *codonPosition-1, *synoumous)
 					p2 = append(p2, p4...)
 					p2Chan <- CorrResults{Results: p2, GeneID: geneRecords.ID, GeneLen: geneLen, ReadNum: len(geneRecords.Records)}
 				}
@@ -243,15 +245,15 @@ type P2 struct {
 }
 
 // doubleCount count codon pairs.
-func doubleCount(nc *NuclCov, codonPairArray []CodonPair) {
+func doubleCount(nc *NuclCov, codonPairArray []CodonPair, position int) {
 	for _, cp := range codonPairArray {
-		a := cp.A.Seq[2]
-		b := cp.B.Seq[2]
+		a := cp.A.Seq[position]
+		b := cp.B.Seq[position]
 		nc.Add(a, b)
 	}
 }
 
-func calcP2(gene *CodonGene, maxl, minDepth int, codeTable *taxonomy.GeneticCode) (p2Res []CorrResult) {
+func calcP2(gene *CodonGene, maxl, minDepth int, codeTable *taxonomy.GeneticCode, codonPosition int, synoumous bool) (p2Res []CorrResult) {
 	alphabet := []byte{'A', 'T', 'G', 'C'}
 	for i := 0; i < gene.Len(); i++ {
 		for j := i; j < gene.Len(); j++ {
@@ -267,11 +269,17 @@ func calcP2(gene *CodonGene, maxl, minDepth int, codeTable *taxonomy.GeneticCode
 				break
 			}
 
-			splittedCodonPairs := SynoumousSplitCodonPairs(codonPairRaw, codeTable)
+			var splittedCodonPairs [][]CodonPair
+			if synoumous {
+				splittedCodonPairs = SynoumousSplitCodonPairs(codonPairRaw, codeTable)
+			} else {
+				splittedCodonPairs = [][]CodonPair{codonPairRaw}
+			}
+
 			for _, synPairs := range splittedCodonPairs {
 				if len(synPairs) > minDepth {
 					nc := NewNuclCov(alphabet)
-					doubleCount(nc, synPairs)
+					doubleCount(nc, synPairs, codonPosition)
 
 					for len(p2Res) <= lag {
 						p2Res = append(p2Res, CorrResult{Type: "P2", Lag: len(p2Res)})
@@ -287,12 +295,12 @@ func calcP2(gene *CodonGene, maxl, minDepth int, codeTable *taxonomy.GeneticCode
 	return
 }
 
-func calcP4(gene *CodonGene, maxl, minDepth int, codeTable *taxonomy.GeneticCode) (p4Res []CorrResult) {
+func calcP4(gene *CodonGene, maxl, minDepth int, codeTable *taxonomy.GeneticCode, codonPosition int, synoumous bool) (p4Res []CorrResult) {
 	var valueArray []float64
 	var countArray []int
 	var posArray []int
 	for i := 0; i < gene.Len(); i++ {
-		value, count := autoCov(gene, i, minDepth, codeTable)
+		value, count := autoCov(gene, i, minDepth, codeTable, codonPosition, synoumous)
 		if count > 0 {
 			pos := gene.CodonPiles[i].GenePos()
 			valueArray = append(valueArray, value)
@@ -326,7 +334,7 @@ func calcP4(gene *CodonGene, maxl, minDepth int, codeTable *taxonomy.GeneticCode
 	return
 }
 
-func autoCov(gene *CodonGene, i, minDepth int, codeTable *taxonomy.GeneticCode) (value float64, count int) {
+func autoCov(gene *CodonGene, i, minDepth int, codeTable *taxonomy.GeneticCode, codonPosition int, synoumous bool) (value float64, count int) {
 	alphabet := []byte{'A', 'T', 'G', 'C'}
 	codonPairRaw := gene.PairCodonAt(i, i)
 	if len(codonPairRaw) < 2 {
@@ -337,11 +345,17 @@ func autoCov(gene *CodonGene, i, minDepth int, codeTable *taxonomy.GeneticCode) 
 		lag = -lag
 	}
 
-	splittedCodonPairs := SynoumousSplitCodonPairs(codonPairRaw, codeTable)
+	var splittedCodonPairs [][]CodonPair
+	if synoumous {
+		splittedCodonPairs = SynoumousSplitCodonPairs(codonPairRaw, codeTable)
+	} else {
+		splittedCodonPairs = [][]CodonPair{codonPairRaw}
+	}
+
 	for _, synPairs := range splittedCodonPairs {
 		if len(synPairs) > minDepth {
 			nc := NewNuclCov(alphabet)
-			doubleCount(nc, synPairs)
+			doubleCount(nc, synPairs, codonPosition)
 
 			xy, _, _, n := nc.Cov11(MinAlleleDepth)
 			value += xy
