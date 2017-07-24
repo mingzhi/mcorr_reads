@@ -72,7 +72,7 @@ func main() {
 	maxDepthFlag := app.Flag("max-depth", "max coverage depth for each gene").Default("0").Float64()
 	minReadLenFlag := app.Flag("min-read-length", "minimal read length").Default("60").Int()
 	codonPosition := app.Flag("codon-position", "codon position").Default("3").Int()
-	synoumous := app.Flag("synoumous", "use synoumous mutations only").Default("true").Bool()
+	synoumous := app.Flag("synoumous", "use synoumous mutations only").Default("false").Bool()
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	bamFile = *bamFileArg
