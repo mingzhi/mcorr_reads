@@ -135,8 +135,7 @@ func main() {
 				gene := pileupCodons(geneRecords)
 				ok := checkCoverage(gene, geneLen, minDepth, minCoverage)
 				if ok {
-					p2 := calcP2(gene, maxl, minDepth, codeTable, *codonPosition-1, *synoumous)
-					p4 := calcP4(gene, maxl, minDepth, codeTable, *codonPosition-1, *synoumous)
+					p2, p4 := calcP2(gene, maxl, minDepth, codeTable, *codonPosition-1, *synoumous)
 					p2 = append(p2, p4...)
 					p2Chan <- CorrResults{Results: p2, GeneID: geneRecords.ID, GeneLen: geneLen, ReadNum: len(geneRecords.Records)}
 				}
@@ -253,7 +252,7 @@ func doubleCount(nc *NuclCov, codonPairArray []CodonPair, position int) {
 	}
 }
 
-func calcP2(gene *CodonGene, maxl, minDepth int, codeTable *taxonomy.GeneticCode, codonPosition int, synoumous bool) (p2Res []CorrResult) {
+func calcP2(gene *CodonGene, maxl, minDepth int, codeTable *taxonomy.GeneticCode, codonPosition int, synoumous bool) (p2Res, p4Res []CorrResult) {
 	alphabet := []byte{'A', 'T', 'G', 'C'}
 	for i := 0; i < gene.Len(); i++ {
 		for j := i; j < gene.Len(); j++ {
@@ -283,10 +282,13 @@ func calcP2(gene *CodonGene, maxl, minDepth int, codeTable *taxonomy.GeneticCode
 
 					for len(p2Res) <= lag {
 						p2Res = append(p2Res, CorrResult{Type: "P2", Lag: len(p2Res)})
+						p4Res = append(p4Res, CorrResult{Type: "P4", Lag: len(p4Res)})
 					}
-					xy, _, _, n := nc.Cov11(MinAlleleDepth)
+					xy, xbar, ybar, n := nc.Cov11(MinAlleleDepth)
 					p2Res[lag].Count += int64(n)
 					p2Res[lag].Value += xy
+					p4Res[lag].Count++
+					p4Res[lag].Value += float64(xbar) / float64(n) * float64(ybar) / float64(n)
 				}
 			}
 		}
