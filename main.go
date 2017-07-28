@@ -95,6 +95,14 @@ func main() {
 	maxDepth = *maxDepthFlag
 	MinReadLength = *minReadLenFlag
 
+	if *codonPosition == 4 {
+		*synoumous = true
+		*codonPosition = 3
+	}
+	if *codonPosition <= 0 || *codonPosition > 4 {
+		log.Fatalln("--codon-position should be in the range of 1 to 4.")
+	}
+
 	runtime.GOMAXPROCS(ncpu)
 
 	// Read sequence reads.
